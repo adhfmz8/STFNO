@@ -27,6 +27,9 @@
 #     STFNO code: Sparsified Time-dependent PDEs FNO code 
 #-----------------------------------------------------------------
  
+
+import os, sys
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 import torch
 import numpy as np
 import random
@@ -136,6 +139,8 @@ if if_HyperDiffusivity_case:
 else:
     path_data_read ='../../nimrod_hdf506_kinematic_dump_data/npvjb_S32_dump_data/'
 
+
+path_data_read = './'
 print(' Reading h5py data from the path:',path_data_read)
 
 if if_readdumpfiledata:
