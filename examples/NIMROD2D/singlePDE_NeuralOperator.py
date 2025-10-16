@@ -1,6 +1,6 @@
-# Sparsified Time-dependent PDEs FNO (STFNO) Copyright (c) 2025, The Regents of 
-# the University of California, through Lawrence Berkeley National Laboratory 
-# (subject to receipt of any required approvals from the U.S.Dept. of Energy).  
+# Sparsified Time-dependent PDEs FNO (STFNO) Copyright (c) 2025, The Regents of
+# the University of California, through Lawrence Berkeley National Laboratory
+# (subject to receipt of any required approvals from the U.S.Dept. of Energy).
 # All rights reserved.
 #
 # If you have questions about your rights to use or distribute this software,
@@ -21,6 +21,9 @@ from contour_plotting import contourplotting
 from relativeError_eachTestDataSample_file4 import relativeErrorEachTestDataSample_file4
 from inferenceTime_testData_file5 import inferenceTimeTestData_file5
 from jittorchcompile_inferenceTime_testData_file6 import  jittorchcompile_inferenceTimeTestData_file6
+# Import the profiler
+import torch.profiler
+import os
 
 def singlePDENeuralOperator(data_read_global,
         data_read_global_mean,data_read_global_std,
@@ -28,9 +31,9 @@ def singlePDENeuralOperator(data_read_global,
         data_read_global_eachTimeStep_std,
         ntrain,ntest,
         S,S_r,S_theta,
-        r_theta_phi, 
+        r_theta_phi,
         T_in,T_out, T_in_steadystate,
-        if_IncludeSteadyState, 
+        if_IncludeSteadyState,
         startofpatternlist_i_file_no_in_SelectData,
         i_fieldlist_parm_eq_vector_train_global_lst, fieldlist_parm_eq_vector_train_global_lst_i_j,
         sum_vector_a_elements_i_iter, sum_vector_u_elements_i_iter,
@@ -39,7 +42,7 @@ def singlePDENeuralOperator(data_read_global,
         strn_epochs_dump_path_file5,
         T_out_sub_time_consecutiveIterator_factor, step,
         batch_size,
-        i_file_no_in_SelectData, 
+        i_file_no_in_SelectData,
         strn_epochs_dump_path_file4,
         strn_epochs_dump_path_file3,
         strn_epochs_dump_path_file2,
@@ -62,10 +65,25 @@ def singlePDENeuralOperator(data_read_global,
     gridx = np.arange(S)
     gridy = np.arange(S)
     xi, yi = np.meshgrid(gridx, gridy)
+
+    # Create a directory for the profiler logs
+    profiler_log_dir = "./logs/profiler"
+    os.makedirs(profiler_log_dir, exist_ok=True)
+
     if not if_model_parameters_load:
         print(" Training and testing the data")
         myloss = LpLoss_fieldElements(size_average=True)
         myloss_MaxNormRel =LpLoss_MaxNormRel_fieldElements(size_average=True)
+
+        # Initialize the profiler
+        prof = torch.profiler.profile(
+            schedule=torch.profiler.schedule(wait=1, warmup=1, active=3, repeat=1),
+            on_trace_ready=torch.profiler.tensorboard_trace_handler(profiler_log_dir),
+            record_shapes=True,
+            profile_memory=True,
+            with_stack=True
+        )
+
         for ep in range(epochs):
             model.train()
             t1 = default_timer()
@@ -74,12 +92,18 @@ def singlePDENeuralOperator(data_read_global,
             train_l2_full = 0
             train_l2_step_MaxNormRel = 0
             train_l2_full_MaxNormRel = 0
-            for xx, yy in train_loader:
+
+            # Start profiling context manager only for a specific epoch
+            if ep == 1: # We will profile the second epoch
+                print("\nStarting PyTorch Profiler for 5 batches in epoch 1...")
+                prof.start()
+
+            for i, (xx, yy) in enumerate(train_loader):
                 loss = 0
                 loss_MaxNormRel = 0
                 xx = xx.to(device)
                 yy = yy.to(device)
-                for t in range(0, T_out*sum_vector_u_elements_i_iter , T_out_sub_time_consecutiveIterator_factor*sum_vector_u_elements_i_iter ):                                    
+                for t in range(0, T_out*sum_vector_u_elements_i_iter , T_out_sub_time_consecutiveIterator_factor*sum_vector_u_elements_i_iter ):
                     y = yy[..., t:t + (T_out_sub_time_consecutiveIterator_factor *sum_vector_u_elements_i_iter) ]
                     im = model(xx)
                     loss += myloss(im, y)
@@ -101,10 +125,19 @@ def singlePDENeuralOperator(data_read_global,
                 train_l2_full += l2_full.item()
                 train_l2_step_MaxNormRel += loss_MaxNormRel.item()
                 train_l2_full_MaxNormRel += myloss_MaxNormRel(pred, yy).item()
-                optimizer.zero_grad()                                
+                optimizer.zero_grad()
                 loss.backward()
                 optimizer.step()
                 scheduler.step()
+
+                # Step the profiler after each batch within the profiled epoch
+                if ep == 1:
+                    prof.step()
+                    if i >= 4: # Stop profiling after 5 batches (0 to 4)
+                        prof.stop()
+                        print("Profiler finished. Trace saved to:", profiler_log_dir)
+
+
             t12mid = default_timer()
             test_l2_step = 0
             test_l2_full = 0
@@ -117,12 +150,12 @@ def singlePDENeuralOperator(data_read_global,
                     loss_MaxNormRel = 0
                     xx = xx.to(device)
                     yy = yy.to(device)
-                    count= count +1 
+                    count= count +1
                     for t in range(0, T_out *sum_vector_u_elements_i_iter  , T_out_sub_time_consecutiveIterator_factor *sum_vector_u_elements_i_iter ):
                         y = yy[..., t:t + (T_out_sub_time_consecutiveIterator_factor *sum_vector_u_elements_i_iter) ]
                         im = model(xx)
-                        loss += myloss(im, y)                
-                        loss_MaxNormRel += myloss_MaxNormRel (im, y)                
+                        loss += myloss(im, y)
+                        loss_MaxNormRel += myloss_MaxNormRel (im, y)
                         if t == 0:
                             pred = im
                         else:
@@ -137,46 +170,46 @@ def singlePDENeuralOperator(data_read_global,
                     test_l2_step_MaxNormRel += loss_MaxNormRel.item()
                     test_l2_full_MaxNormRel += myloss_MaxNormRel(pred, yy).item()
             t2 = default_timer()
-            print('ep=', ep, ', t2 - t1 (trainTime+testTime)=',t2 - t1, 
-                ', train_l2_step / ntrain / (T_out / step)=', train_l2_step / ntrain / (T_out / step), 
+            print('ep=', ep, ', t2 - t1 (trainTime+testTime)=',t2 - t1,
+                ', train_l2_step / ntrain / (T_out / step)=', train_l2_step / ntrain / (T_out / step),
                 ', train_l2_full / ntrain=', train_l2_full / ntrain,
                 ', test_l2_step / ntest / (T_out / step)=',test_l2_step / ntest / (T_out / step),
-                ', test_l2_full / ntest=',test_l2_full / ntest, 
+                ', test_l2_full / ntest=',test_l2_full / ntest,
                 ", count_params(model)=",count_params_model,
-                ', t12mid - t1 (trainTime)=',t12mid - t1, 
+                ', t12mid - t1 (trainTime)=',t12mid - t1,
                 ', t2 - t12mid (testTime)=',t2 - t12mid )
             file1 = open(strn_epochs_dump_path_file1, "a")  # append mode
-            str_file1= ( 'ep=' +str( ep) + ', t2 - t1 (trainTime+testTime) ='+str(t2 - t1) +  
+            str_file1= ( 'ep=' +str( ep) + ', t2 - t1 (trainTime+testTime) ='+str(t2 - t1) +
                 ', train_l2_step / ntrain / (T_out / step)='+str( train_l2_step / ntrain / (T_out / step))+
                 ', train_l2_full / ntrain='+str( train_l2_full / ntrain)+
                 ', test_l2_step / ntest / (T_out / step)='+str(test_l2_step / ntest / (T_out / step))+
-                ', test_l2_full / ntest='+str(test_l2_full / ntest) + 
-                ', t12mid - t1(train)='+str(t12mid - t1) +  
-                ', t2 - t12mid(test)='+str(t2 - t12mid) +  
+                ', test_l2_full / ntest='+str(test_l2_full / ntest) +
+                ', t12mid - t1(train)='+str(t12mid - t1) +
+                ', t2 - t12mid(test)='+str(t2 - t12mid) +
                 '\n' )
             file1.write(str_file1)
             file1.close()
-            file2 = open(strn_epochs_dump_path_file2, "a")  
-            str_file2= ( str( ep) +','+ str(t2 - t1)   
+            file2 = open(strn_epochs_dump_path_file2, "a")
+            str_file2= ( str( ep) +','+ str(t2 - t1)
                 +','+ str( train_l2_step / ntrain / (T_out / step))
                 +','+ str( train_l2_full / ntrain)
                 +','+ str(test_l2_step / ntest / (T_out / step))
                 +','+str(test_l2_full / ntest)
-                +','+str(count_params_model)  
-                +','+ str(t12mid - t1)   
-                +','+ str(t2 - t12mid)  
+                +','+str(count_params_model)
+                +','+ str(t12mid - t1)
+                +','+ str(t2 - t12mid)
                 +'\n' )
             file2.write(str_file2)
             file2.close()
-            file3 = open(strn_epochs_dump_path_file3, "a")  
-            str_file3= ( str( ep) +','+ str(t2 - t1)   
+            file3 = open(strn_epochs_dump_path_file3, "a")
+            str_file3= ( str( ep) +','+ str(t2 - t1)
                 +','+ str( train_l2_step_MaxNormRel / ntrain / (T_out / step))
                 +','+ str( train_l2_full_MaxNormRel / ntrain)
                 +','+ str(test_l2_step_MaxNormRel / ntest / (T_out / step))
                 +','+str(test_l2_full_MaxNormRel / ntest)
                 +','+str(count_params_model)
-                +','+ str(t12mid - t1)   
-                +','+ str(t2 - t12mid)  
+                +','+ str(t12mid - t1)
+                +','+ str(t2 - t12mid)
                 + '\n' )
             file3.write(str_file3)
             file3.close()
@@ -194,13 +227,13 @@ def singlePDENeuralOperator(data_read_global,
     print('Calculating relative error norm lists of test sample and writing at ',strn_epochs_dump_path_file4)
     relativeErrorEachTestDataSample_file4(
         ntrain,ntest,
-        T_out, 
+        T_out,
         startofpatternlist_i_file_no_in_SelectData,
         sum_vector_a_elements_i_iter, sum_vector_u_elements_i_iter,
         epochs,
         T_out_sub_time_consecutiveIterator_factor, step,
         batch_size,
-        i_file_no_in_SelectData, 
+        i_file_no_in_SelectData,
         strn_epochs_dump_path_file4,
         model,
         test_loader
@@ -212,7 +245,7 @@ def singlePDENeuralOperator(data_read_global,
             data_read_global_eachTimeStep_mean,
             data_read_global_eachTimeStep_std,
             ntrain,
-            r_theta_phi, 
+            r_theta_phi,
             T_out,
             startofpatternlist_i_file_no_in_SelectData,
             i_fieldlist_parm_eq_vector_train_global_lst, fieldlist_parm_eq_vector_train_global_lst_i_j,
@@ -220,7 +253,7 @@ def singlePDENeuralOperator(data_read_global,
             epochs,
             T_out_sub_time_consecutiveIterator_factor, step,
             batch_size,
-            i_file_no_in_SelectData, 
+            i_file_no_in_SelectData,
             if_GTCLinearNonLinear_case_xy_cordinates_pmeshplot,
             OneByPowerTransformationFactorOfData,
             log_param,
@@ -232,7 +265,7 @@ def singlePDENeuralOperator(data_read_global,
     print('Measuring the inference time of test data and writing at ',strn_epochs_dump_path_file5)
     inferenceTimeTestData_file5(
     S_r,S_theta , T_in,T_out, T_in_steadystate,
-    if_IncludeSteadyState, 
+    if_IncludeSteadyState,
     sum_vector_a_elements_i_iter, sum_vector_u_elements_i_iter,
     epochs,
     strn_epochs_dump_path_file5,
@@ -243,16 +276,16 @@ def singlePDENeuralOperator(data_read_global,
 
     if if_model_jit_torchCompile:
         print('Measuring JIT torchDOTcompile test time')
-        jittorchcompile_inferenceTimeTestData_file6(            
+        jittorchcompile_inferenceTimeTestData_file6(
             ntest,
             S,
-            T_out, 
+            T_out,
             sum_vector_u_elements_i_iter,
             epochs,
             strn_epochs_dump_path_file6,
             T_out_sub_time_consecutiveIterator_factor, step,
             if_model_jit_torchCompile,
             model,
-            test_loader,            
+            test_loader,
             count_params_model
             )
