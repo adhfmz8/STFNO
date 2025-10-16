@@ -79,7 +79,7 @@ print(' number of layers',number_of_layers)
 
 modes = 12
 width = 20
-batch_size = 1 
+batch_size = 16
 learning_rate = 0.001
 epochs = 3 #1
 iterations = epochs*(ntrain//batch_size)
