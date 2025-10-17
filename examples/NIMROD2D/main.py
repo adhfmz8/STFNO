@@ -1,6 +1,6 @@
-# Sparsified Time-dependent PDEs FNO (STFNO) Copyright (c) 2025, The Regents of 
-# the University of California, through Lawrence Berkeley National Laboratory 
-# (subject to receipt of any required approvals from the U.S.Dept. of Energy).  
+# Sparsified Time-dependent PDEs FNO (STFNO) Copyright (c) 2025, The Regents of
+# the University of California, through Lawrence Berkeley National Laboratory
+# (subject to receipt of any required approvals from the U.S.Dept. of Energy).
 # All rights reserved.
 #
 # If you have questions about your rights to use or distribute this software,
@@ -24,9 +24,11 @@
 #     Revision 1.1  2024/08/20 15:30:00  mustafar
 #     Original source.
 
-#     STFNO code: Sparsified Time-dependent PDEs FNO code 
+#     STFNO code: Sparsified Time-dependent PDEs FNO code
 #-----------------------------------------------------------------
- 
+
+import os, sys
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 import torch
 import numpy as np
 import random
@@ -49,7 +51,7 @@ if_IncludeSteadyState = False #True
 if_HyperDiffusivity_case= True
 if_2ndRunHyperDiffusivity_case = True
 if_postTraingAndTesting_ContourPlotsOfTestingData = False
-if_GTCLinearNonLinear_case = False 
+if_GTCLinearNonLinear_case = False
 if_GTCLinearNonLinear_case_xy_cordinates_pmeshplot = False
 Option_NormalizingTrainTestData = 1 #2 or 1 or by default no normaliztion  True
 if_model_Nimrod_STFNO_global = True # True
@@ -60,13 +62,13 @@ factor_ntrain_by_ntrainPlusntest = 0.50
 if if_HyperDiffusivity_case:
     ntrain = 66 # 12 # 4 #10 #* 3 #100
     ntest  = 66 # 12 # 4 #10 #* 3#20
-else: 
+else:
     ntrain = 8 # 12 # 4 #10 #* 3 #100
     ntest  = 8 # 12 # 4 #10 #* 3 #20
 sub = 1
 S = 64 #256 # 64 #32 # #256
 T_in = 1 #10 #10 #10
-T_out = 1 #40 #20 #300 
+T_out = 1 #40 #20 #300
 T_out_sub_time_consecutiveIterator_factor = T_out  ##Must be a factor of T_out
 step = T_out_sub_time_consecutiveIterator_factor
 print(' T_in =',T_in)
@@ -76,7 +78,7 @@ print(' number of layers',number_of_layers)
 
 modes = 12
 width = 20
-batch_size = 1 
+batch_size = 1
 learning_rate = 0.001
 epochs = 500 #1
 iterations = epochs*(ntrain//batch_size)
@@ -96,11 +98,11 @@ n_beg = 0
 r_theta_phi, i_file_no_in, path = i_file_no_in_original(nx_r, nx_theta,theta_begn, theta_end,r_cntr, globl_r_end_estmt,globl_r_begn_estmt,phi,if_HyperDiffusivity_case,if_2ndRunHyperDiffusivity_case, n_beg)
 (fieldlist_parm_lst,
     fieldlist_parm_vector_lst,
-    fieldlist_parm_eq_range, 
-    fieldlist_parm_vector_chosen, 
+    fieldlist_parm_eq_range,
+    fieldlist_parm_vector_chosen,
     fieldlist_parm_eq_vector_train_global_lst,
-    input_parameter_order, 
-    mWidth_input_parameters, 
+    input_parameter_order,
+    mWidth_input_parameters,
     nWidth_output_parameters ) = NIMROD_pde_operator_parameters_defination(
                                 if_2ndRunHyperDiffusivity_case, S)
 data_dump_tmp = torch.zeros(S,S)
@@ -125,10 +127,10 @@ print(' S=',S)
 if if_HyperDiffusivity_case:
     if if_2ndRunHyperDiffusivity_case:
         if S == 64:
-            path_data_read ='../../../../../nimrod_hdf510_ZheBaihypdifusv_dump_data/npvjb_S64_dump_data_corrected_combinedTemperature/'    
+            path_data_read ='../../../../../nimrod_hdf510_ZheBaihypdifusv_dump_data/npvjb_S64_dump_data_corrected_combinedTemperature/'
         else:
             path_data_read ='../../nimrod_hdf510_ZheBaihypdifusv_dump_data/npvjb_S32_dump_data/'
-    else:    
+    else:
         if S == 64:
             path_data_read ='../../nimrod_hdf507_hypdifusv_dump_data/npvbj_S64_dump_data/'
         else:
@@ -136,6 +138,8 @@ if if_HyperDiffusivity_case:
 else:
     path_data_read ='../../nimrod_hdf506_kinematic_dump_data/npvjb_S32_dump_data/'
 
+
+path_data_read = "/pscratch/sd/n/nkdiamo/nimrod_data/"
 print(' Reading h5py data from the path:',path_data_read)
 
 if if_readdumpfiledata:
@@ -150,20 +154,20 @@ if if_readdumpfiledata:
                         Option_NormalizingTrainTestData,i_file_no_in,
                         OneByPowerTransformationFactorOfData
                         )
-total_number_of_set_ntrain_plus_ntest_possible_i_file_no_in_SelectData  = len(i_file_no_in_SelectData) - T_in - T_out 
+total_number_of_set_ntrain_plus_ntest_possible_i_file_no_in_SelectData  = len(i_file_no_in_SelectData) - T_in - T_out
 if total_number_of_set_ntrain_plus_ntest_possible_i_file_no_in_SelectData < 0:
     exit(1)
 ntrain = int(total_number_of_set_ntrain_plus_ntest_possible_i_file_no_in_SelectData * factor_ntrain_by_ntrainPlusntest)
 ntest = total_number_of_set_ntrain_plus_ntest_possible_i_file_no_in_SelectData - ntrain
 sequential_splitting_option = False # False is default for random splitting
-if sequential_splitting_option: 
+if sequential_splitting_option:
     startofpatternlist_i_file_no_in_SelectData = list(range( ntrain ))
 else:
     startofpatternlist_i_file_no_in_SelectData = list(range( total_number_of_set_ntrain_plus_ntest_possible_i_file_no_in_SelectData ))
 random.seed(random_seed_i_file_no_in_SelectData)
 random.shuffle(startofpatternlist_i_file_no_in_SelectData)
-if sequential_splitting_option: 
-    startofpatternlist_i_file_no_in_SelectData.extend( range(ntrain,total_number_of_set_ntrain_plus_ntest_possible_i_file_no_in_SelectData) ) 
+if sequential_splitting_option:
+    startofpatternlist_i_file_no_in_SelectData.extend( range(ntrain,total_number_of_set_ntrain_plus_ntest_possible_i_file_no_in_SelectData) )
 
 print(' ntrain = ',ntrain)
 print(' ntest = ',ntest)
@@ -180,15 +184,15 @@ multiPDEs_overallsetup(
             data_read_global_eachTimeStep_std,
             ntrain,ntest,
             S,S_r,S_theta,
-            r_theta_phi, 
+            r_theta_phi,
             T_in,T_out, T_in_steadystate,
-            if_IncludeSteadyState, 
+            if_IncludeSteadyState,
             n_beg, startofpatternlist_i_file_no_in_SelectData,
             if_model_Nimrod_STFNO_global  ,
             epochs,
             T_out_sub_time_consecutiveIterator_factor, step,
             batch_size,number_of_layers,learning_rate,iterations,
-            i_file_no_in_SelectData, 
+            i_file_no_in_SelectData,
             modes, width,
             fieldlist_parm_lst,fieldlist_parm_eq_range,fieldlist_parm_vector_lst,
             fieldlist_parm_eq_vector_train_global_lst,
@@ -200,9 +204,9 @@ multiPDEs_overallsetup(
             log_param,
             nlvls,
             epsilon_inPlottingErrorNormalization,
-            input_parameter_order, 
-            mWidth_input_parameters, 
+            input_parameter_order,
+            mWidth_input_parameters,
             nWidth_output_parameters,
             if_intermediate_parameter_update
             )
-exit() 
+exit()
