@@ -62,15 +62,17 @@ def singlePDENeuralOperator(data_read_global,
     gridx = np.arange(S)
     gridy = np.arange(S)
     xi, yi = np.meshgrid(gridx, gridy)
+    
+    total_training_start_time = default_timer()
+
     if not if_model_parameters_load:
-        print(" Training and testing the data")
+        print(" Starting training and testing...")
         myloss = LpLoss_fieldElements(size_average=True)
         myloss_MaxNormRel =LpLoss_MaxNormRel_fieldElements(size_average=True)
         for ep in range(epochs):
             model.train()
             t1 = default_timer()
             train_l2_step = 0
-            train_l2_full = 0
             train_l2_full = 0
             train_l2_step_MaxNormRel = 0
             train_l2_full_MaxNormRel = 0
@@ -105,19 +107,20 @@ def singlePDENeuralOperator(data_read_global,
                 loss.backward()
                 optimizer.step()
                 scheduler.step()
+            
+            # Time after training loop for this epoch
             t12mid = default_timer()
+
             test_l2_step = 0
             test_l2_full = 0
             test_l2_step_MaxNormRel = 0
             test_l2_full_MaxNormRel = 0
             with torch.no_grad():
-                count = -1
                 for i_testloader,(xx, yy) in enumerate(test_loader):
                     loss = 0
                     loss_MaxNormRel = 0
                     xx = xx.to(device)
                     yy = yy.to(device)
-                    count= count +1 
                     for t in range(0, T_out *sum_vector_u_elements_i_iter  , T_out_sub_time_consecutiveIterator_factor *sum_vector_u_elements_i_iter ):
                         y = yy[..., t:t + (T_out_sub_time_consecutiveIterator_factor *sum_vector_u_elements_i_iter) ]
                         im = model(xx)
@@ -136,60 +139,43 @@ def singlePDENeuralOperator(data_read_global,
                     test_l2_full += myloss(pred, yy).item()
                     test_l2_step_MaxNormRel += loss_MaxNormRel.item()
                     test_l2_full_MaxNormRel += myloss_MaxNormRel(pred, yy).item()
+            
+            # Time after testing for this epoch
             t2 = default_timer()
-            print('ep=', ep, ', t2 - t1 (trainTime+testTime)=',t2 - t1, 
-                ', train_l2_step / ntrain / (T_out / step)=', train_l2_step / ntrain / (T_out / step), 
-                ', train_l2_full / ntrain=', train_l2_full / ntrain,
-                ', test_l2_step / ntest / (T_out / step)=',test_l2_step / ntest / (T_out / step),
-                ', test_l2_full / ntest=',test_l2_full / ntest, 
-                ", count_params(model)=",count_params_model,
-                ', t12mid - t1 (trainTime)=',t12mid - t1, 
-                ', t2 - t12mid (testTime)=',t2 - t12mid )
-            file1 = open(strn_epochs_dump_path_file1, "a")  # append mode
-            str_file1= ( 'ep=' +str( ep) + ', t2 - t1 (trainTime+testTime) ='+str(t2 - t1) +  
-                ', train_l2_step / ntrain / (T_out / step)='+str( train_l2_step / ntrain / (T_out / step))+
-                ', train_l2_full / ntrain='+str( train_l2_full / ntrain)+
-                ', test_l2_step / ntest / (T_out / step)='+str(test_l2_step / ntest / (T_out / step))+
-                ', test_l2_full / ntest='+str(test_l2_full / ntest) + 
-                ', t12mid - t1(train)='+str(t12mid - t1) +  
-                ', t2 - t12mid(test)='+str(t2 - t12mid) +  
-                '\n' )
-            file1.write(str_file1)
-            file1.close()
-            file2 = open(strn_epochs_dump_path_file2, "a")  
-            str_file2= ( str( ep) +','+ str(t2 - t1)   
-                +','+ str( train_l2_step / ntrain / (T_out / step))
-                +','+ str( train_l2_full / ntrain)
-                +','+ str(test_l2_step / ntest / (T_out / step))
-                +','+str(test_l2_full / ntest)
-                +','+str(count_params_model)  
-                +','+ str(t12mid - t1)   
-                +','+ str(t2 - t12mid)  
-                +'\n' )
-            file2.write(str_file2)
-            file2.close()
-            file3 = open(strn_epochs_dump_path_file3, "a")  
-            str_file3= ( str( ep) +','+ str(t2 - t1)   
-                +','+ str( train_l2_step_MaxNormRel / ntrain / (T_out / step))
-                +','+ str( train_l2_full_MaxNormRel / ntrain)
-                +','+ str(test_l2_step_MaxNormRel / ntest / (T_out / step))
-                +','+str(test_l2_full_MaxNormRel / ntest)
-                +','+str(count_params_model)
-                +','+ str(t12mid - t1)   
-                +','+ str(t2 - t12mid)  
-                + '\n' )
-            file3.write(str_file3)
-            file3.close()
-        file1 = open(strn_epochs_dump_path_file1, "a")  # append mode
-        str_file1= ( '\n\n\n\n\n\n\n\n' )
-        file1.write(str_file1)
-        file1.close()
+
+            epoch_time = t2 - t1
+            train_time = t12mid - t1
+            test_time = t2 - t12mid
+            avg_train_loss = train_l2_full / ntrain
+            avg_test_loss = test_l2_full / ntest
+            total_elapsed_time = default_timer() - total_training_start_time
+            
+            print(f"STATS: "
+                  f"BATCH_SIZE={batch_size}, "
+                  f"EPOCH={ep}, "
+                  f"TRAIN_LOSS={avg_train_loss:.6f}, "
+                  f"TEST_LOSS={avg_test_loss:.6f}, "
+                  f"EPOCH_TIME_S={epoch_time:.4f}, "
+                  f"TRAIN_TIME_S={train_time:.4f}, "
+                  f"TEST_TIME_S={test_time:.4f}, "
+                  f"TOTAL_TIME_S={total_elapsed_time:.4f}")
+
+        final_total_time = default_timer() - total_training_start_time
+        print(f"\nSUMMARY: "
+              f"BATCH_SIZE={batch_size}, "
+              f"TOTAL_EPOCHS={epochs}, "
+              f"FINAL_TRAIN_LOSS={avg_train_loss:.6f}, "
+              f"FINAL_TEST_LOSS={avg_test_loss:.6f}, "
+              f"TOTAL_TRAINING_TIME_S={final_total_time:.4f}\n")
+
         if if_intermediate_parameter_update:
-            pass  # Not considering this way of modifying the model
+            pass
         torch.save(model.state_dict(), model_save_path)
+    
     if if_model_parameters_load:
         model.load_state_dict(torch.load(model_save_path))
         model.eval()
+
     print('Finished training & testing the model with epochs')
     print('Calculating relative error norm lists of test sample and writing at ',strn_epochs_dump_path_file4)
     relativeErrorEachTestDataSample_file4(
