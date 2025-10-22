@@ -17,7 +17,7 @@
 import numpy
 import torch
 import h5py
-import os # Added os for path joining
+import os
 
 def readfiledata_h5py_ifilenoinSelectData(
         if_HyperDiffusivity_case, if_2ndRunHyperDiffusivity_case,S,
