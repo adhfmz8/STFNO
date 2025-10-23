@@ -32,6 +32,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")
 import torch
 import numpy as np
 import random
+import torch.cuda.nvtx as nvtx
 from rBegn_rEnd_estimate import globl_r_begn_r_end_estmt_theta
 from i_file_no_in_original_data import i_file_no_in_original
 from dumpfiledata_h5py_i_file_no_in_original_data import dumpfiledata_h5py_i_file_no
@@ -78,9 +79,9 @@ print(' number of layers',number_of_layers)
 
 modes = 12
 width = 20
-batch_size = 1
+batch_size = 16
 learning_rate = 0.001
-epochs = 500 #1
+epochs = 3 #1
 iterations = epochs*(ntrain//batch_size)
 OneByPowerTransformationFactorOfData = 1.0
 nx_r = S #32
@@ -142,6 +143,7 @@ else:
 path_data_read = "/pscratch/sd/n/nkdiamo/nimrod_data/"
 print(' Reading h5py data from the path:',path_data_read)
 
+nvtx.range_push("Data Loading")
 if if_readdumpfiledata:
     (data_read_global,
      data_read_global_mean,data_read_global_std,
@@ -154,6 +156,8 @@ if if_readdumpfiledata:
                         Option_NormalizingTrainTestData,i_file_no_in,
                         OneByPowerTransformationFactorOfData
                         )
+nvtx.range_pop()
+
 total_number_of_set_ntrain_plus_ntest_possible_i_file_no_in_SelectData  = len(i_file_no_in_SelectData) - T_in - T_out
 if total_number_of_set_ntrain_plus_ntest_possible_i_file_no_in_SelectData < 0:
     exit(1)
@@ -177,6 +181,7 @@ print(' snapshots for testing: ',[i_file_no_in_SelectData[i]  for i in startofpa
 iterations = epochs*(ntrain//batch_size)
 nbeg=0
 if_intermediate_parameter_update = False
+nvtx.range_push("Training and Evaluation")
 multiPDEs_overallsetup(
             data_read_global,
             data_read_global_mean,data_read_global_std,
@@ -209,4 +214,5 @@ multiPDEs_overallsetup(
             nWidth_output_parameters,
             if_intermediate_parameter_update
             )
+nvtx.range_pop()
 exit()
