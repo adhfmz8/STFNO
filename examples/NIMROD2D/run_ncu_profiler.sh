@@ -18,7 +18,8 @@ module load python
 module load pytorch
 
 export PYTHONPATH=$PWD/../../:$PYTHONPATH
+export CUDA_VISIBLE_DEVICES=0
 
 NCU_REPORT_FILE="fno_profile.ncu-rep"
 
-ncu --set full --nvtx -o "${NCU_REPORT_FILE}" --force-overwrite python main.py | tee run_output_profile.txt
+srun ncu --set full --nvtx -o "${NCU_REPORT_FILE}" --force-overwrite python main.py | tee run_output_profile.txt
