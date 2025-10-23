@@ -12,7 +12,7 @@
 #SBATCH --job-name=fno-profile
 #SBATCH --mail-user=nkdiamond@miners.utep.edu
 #SBATCH --mail-type=ALL
-#SBATCH -C gpu
+#SBATCH -C 'gpu&hbm80g'
 
 # Load necessary modules
 module load python
@@ -21,6 +21,16 @@ module load pytorch
 # Set Python path
 export PYTHONPATH=$PWD/../../:$PYTHONPATH
 
+# Define the output file for the Nsight Compute report
 NCU_REPORT_FILE="fno_profile.ncu-rep"
 
+echo "Pausing DCGM..."
+dcgmi profile --pause
+
+echo "Running Nsight Compute..."
 ncu --target-processes all --set full --nvtx -o "${NCU_REPORT_FILE}" --force-overwrite python main.py | tee run_output_profile.txt
+
+echo "Resuming DCGM..."
+dcgmi profile --resume
+
+echo "Profiling job complete. Report saved to ${NCU_REPORT_FILE}"
