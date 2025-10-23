@@ -1,4 +1,4 @@
-#!/bin/bash -l
+#!/bin-bash -l
 
 #SBATCH --account=m4647
 #SBATCH --constraint=gpu
@@ -12,14 +12,15 @@
 #SBATCH --job-name=fno-profile
 #SBATCH --mail-user=nkdiamond@miners.utep.edu
 #SBATCH --mail-type=ALL
-#SBATCH -C 'gpu&hbm80g'
+#SBATCH -C gpu
 
+# Load necessary modules
 module load python
 module load pytorch
 
+# Set Python path
 export PYTHONPATH=$PWD/../../:$PYTHONPATH
-export CUDA_VISIBLE_DEVICES=0
 
 NCU_REPORT_FILE="fno_profile.ncu-rep"
 
-srun ncu --set full --nvtx -o "${NCU_REPORT_FILE}" --force-overwrite python main.py | tee run_output_profile.txt
+ncu --target-processes all --set full --nvtx -o "${NCU_REPORT_FILE}" --force-overwrite python main.py | tee run_output_profile.txt
