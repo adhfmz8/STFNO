@@ -28,7 +28,6 @@
 #-----------------------------------------------------------------
 
 import os, sys
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 import torch
 import numpy as np
 import random
@@ -80,7 +79,7 @@ modes = 12
 width = 20
 batch_size = 1
 learning_rate = 0.001
-epochs = 500 #1
+epochs = 3 #1
 iterations = epochs*(ntrain//batch_size)
 OneByPowerTransformationFactorOfData = 1.0
 nx_r = S #32
