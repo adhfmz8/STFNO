@@ -22,7 +22,7 @@ module load pytorch
 export PYTHONPATH=$PWD/../../:$PYTHONPATH
 
 # Define the output file for the Nsight Compute report
-NCU_REPORT_FILE="fno_profile.ncu-rep"
+NCU_REPORT_FILE="elementwise_kernel_profile.ncu-rep"
 
 echo "Pausing DCGM..."
 dcgmi profile --pause
