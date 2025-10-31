@@ -29,8 +29,8 @@ dcgmi profile --pause
 
 echo "Running Nsight Compute on Rank 1 Kernel..."
 
-srun ncu --kernel-name regex:"void at::native::elementwise_kernel<128, 2, at::native::gpu_kernel_impl_nocast<at::native::direct_copy_kernel_cuda" \
-    --set full -o "rank_1_elementwise_copy.ncu-rep" --force-overwrite \
+srun ncu --kernel-name "elementwise_kernel" \
+    --set full -o "elementwise_profile.ncu-rep" --force-overwrite \
     python main.py
 
 echo "Resuming DCGM..."
