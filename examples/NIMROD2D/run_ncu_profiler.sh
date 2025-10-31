@@ -30,7 +30,9 @@ dcgmi profile --pause
 echo "Running Nsight Compute on Rank 1 Kernel..."
 
 srun ncu --kernel-name "elementwise_kernel" \
-    --set full -o "elementwise_profile.ncu-rep" --force-overwrite \
+    --launch-skip 10 --launch-count 1 \
+    --set speedOfLight \
+    -o elementwise_profile.ncu-rep --force-overwrite \
     python main.py
 
 echo "Resuming DCGM..."
