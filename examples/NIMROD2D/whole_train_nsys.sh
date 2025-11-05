@@ -28,7 +28,7 @@ dcgmi profile --pause
 
 echo "Starting Nsight Systems profiling..."
 
-srun nsys profile --stats=true -t nvtx,cuda -o ${NSYS_REPORT_FILE} --force-overwrite \
+srun nsys profile --stats=true -t nvtx,cuda -o ${NSYS_REPORT_FILE} --force-overwrite=true \
     python $SLURM_SUBMIT_DIR/main.py
 
 echo "Nsight Systems profiling complete."
