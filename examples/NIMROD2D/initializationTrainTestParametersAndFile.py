@@ -232,6 +232,10 @@ def initializationTrainTestParametersFile(
         else:
             model = FNO2d_glob_orig         (modes, modes, width,(T_in)  ,sum_vector_a_elements_i_iter,T_out,sum_vector_u_elements_i_iter,number_of_layers,
                                              if_model_jit_torchCompile).cuda()
+    if if_model_jit_torchCompile:
+        print("--- Applying torch.compile() to the entire model ---")
+        model = torch.compile(model)
+    
     count_params_model=count_params(model)
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate, weight_decay=1e-4)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=iterations)
