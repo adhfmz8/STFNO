@@ -288,5 +288,5 @@ model = multiPDEs_overallsetup(
     nWidth_output_parameters,
     if_intermediate_parameter_update,
 )
-scripted = torch.jit.script(model)
-print(scripted.graph)
+traced = torch.jit.trace(model, example_input)
+print(traced.graph)
