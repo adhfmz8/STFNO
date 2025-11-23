@@ -527,7 +527,7 @@ def initializationTrainTestParametersFile(
     if if_model_jit_torchCompile:
         print("Applying torch.compile to the model...")
         try:
-            model = torch.compile(model, mode="reduce-overhead")
+            model = torch.compile(model, mode="default")
         except Exception as e:
             print(f"Warning: mode='reduce-overhead' failed ({e}). Fallback to default.")
             model = torch.compile(model)
