@@ -19,7 +19,7 @@ module load pytorch
 
 cd $SCRATCH
 
-NSYS_REPORT_FILE="fno_model_profile_jit.nsys-rep"
+NSYS_REPORT_FILE="fno_model_profile_compile.nsys-rep"
 
 export PYTHONPATH=$SLURM_SUBMIT_DIR/../../:$PYTHONPATH
 
