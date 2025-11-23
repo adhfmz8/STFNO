@@ -528,7 +528,6 @@ def initializationTrainTestParametersFile(
     if if_model_jit_torchCompile:
         print("Applying torch.compile to the model...")
         torch._inductor.config.triton.cudagraphs = False
-        torch._inductor.config.cudagraphs = False
         model = torch.compile(model, mode="default")
     count_params_model = count_params(model)
     optimizer = torch.optim.Adam(
