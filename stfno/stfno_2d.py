@@ -21,13 +21,6 @@
 #     All Rights Reserved
 # -----------------------------------------------------------------
 
-#     Revision 1.1  2024/08/20 15:30:00  mustafar
-#     Original source.
-
-#     STFNO code: Sparsified Time-dependent PDEs FNO code
-# -----------------------------------------------------------------
-
-
 import torch
 import torch.nn as nn
 from stfno.fourier_transform_2d_layer import SpectralConv2d
@@ -56,18 +49,15 @@ class FNO2d_global(nn.Module):
         if_model_jit_torchCompile,
     ):
         super(FNO2d_global, self).__init__()
-        # if total_vector_u_elements_i == 7:
         self.input_parameter_order = input_parameter_order0
         self.mWidth_input_parameters = mWidth_input_parameters0
         self.nWidth_output_parameters = nWidth_output_parameters0
-        # else:
-        #     exit(1)
         self.modes1 = modes1
         self.modes2 = modes2
         self.width_in = width * total_vector_a_elements_i
         self.width_out = width * total_vector_u_elements_i
-        self.width = width  # * total_vector_a_elements_i
-        self.padding = 8  # pad the domain if input is non-periodic
+        self.width = width
+        self.padding = 8
         self.T_in = T_in
         self.T_out = T
         self.total_vector_a_elements_i = total_vector_a_elements_i
@@ -80,12 +70,13 @@ class FNO2d_global(nn.Module):
             ]
         )
         self.conv_linears = nn.ModuleList()
+
         if if_model_jit_torchCompile:
             for j in range(self.n_layers):
                 self.conv_linears.append(
                     nn.ModuleList(
                         [
-                            SpectralConv2d(
+                            SpectralConv2d_jit_torchCompile(
                                 self.width * self.mWidth_input_parameters[i],
                                 self.width * self.nWidth_output_parameters[i],
                                 self.modes1,
@@ -96,6 +87,7 @@ class FNO2d_global(nn.Module):
                     )
                 )
         else:
+            # Use the standard class
             for j in range(self.n_layers):
                 self.conv_linears.append(
                     nn.ModuleList(
@@ -110,6 +102,7 @@ class FNO2d_global(nn.Module):
                         ]
                     )
                 )
+
         self.mlp_linears = nn.ModuleList()
         for j in range(self.n_layers):
             self.mlp_linears.append(
@@ -206,8 +199,6 @@ class FNO2d_global(nn.Module):
                     dim=-1,
                 )
 
-        # --- FIX: ADDED .contiguous() HERE ---
-        # This prevents the stride assertion error in torch.compile
         x = x.permute(0, 3, 1, 2).contiguous()
 
         for i_n_layers in range(self.n_layers):
@@ -241,6 +232,7 @@ class FNO2d_global(nn.Module):
                 ] = x1[i] + x2[i]
             if i_n_layers != (self.n_layers - 1):
                 x = F.gelu(x)
+
         Solve_q_linearsWithVariable_x1_AndNotAsSelfModificationOfx = True
         if Solve_q_linearsWithVariable_x1_AndNotAsSelfModificationOfx:
             for i, l in enumerate(self.q_linears):
