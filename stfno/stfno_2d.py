@@ -85,7 +85,7 @@ class FNO2d_global(nn.Module):
                 self.conv_linears.append(
                     nn.ModuleList(
                         [
-                            SpectralConv2d_jit_torchCompile(
+                            SpectralConv2d(
                                 self.width * self.mWidth_input_parameters[i],
                                 self.width * self.nWidth_output_parameters[i],
                                 self.modes1,
