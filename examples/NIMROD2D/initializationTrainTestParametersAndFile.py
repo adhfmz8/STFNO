@@ -20,6 +20,7 @@ import os
 from stfno.utilities3 import *
 from stfno.stfno_2d import FNO2d_global
 from stfno.fno_2d_baseline import FNO2d_glob_orig
+import torch._inductor.config
 
 
 def initializationTrainTestParametersFile(
@@ -526,6 +527,8 @@ def initializationTrainTestParametersFile(
 
     if if_model_jit_torchCompile:
         print("Applying torch.compile to the model...")
+        torch._inductor.config.triton.cudagraphs = False
+        torch._inductor.config.cudagraphs = False
         model = torch.compile(model, mode="default")
     count_params_model = count_params(model)
     optimizer = torch.optim.Adam(
