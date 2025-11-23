@@ -117,7 +117,6 @@ def singlePDENeuralOperator(
                     ]
                     # NVTX PROFILING: Add a marker for the forward pass
                     nvtx.range_push("Forward Pass")
-                    im = model(xx)
                     im = model(xx.contiguous())
                     nvtx.range_pop()
                     # NVTX PROFILING: Add a marker for the loss calculation
