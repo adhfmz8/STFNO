@@ -40,48 +40,33 @@ def compile_friendly_interpolate_bilinear(x, size):
     B, C, H, W = x.shape
     target_h, target_w = size
 
-    # 1. Calculate source coordinates (align_corners=False logic)
-    # formula: src = (dst + 0.5) * (src_len / dst_len) - 0.5
+    # Calculate coordinates
     y_coords = torch.arange(target_h, device=x.device, dtype=torch.float32)
     x_coords = torch.arange(target_w, device=x.device, dtype=torch.float32)
 
     y_src = (y_coords + 0.5) * (H / target_h) - 0.5
     x_src = (x_coords + 0.5) * (W / target_w) - 0.5
 
-    # Clamp to ensure we don't index out of bounds
     y_src = torch.clamp(y_src, 0, H - 1)
     x_src = torch.clamp(x_src, 0, W - 1)
 
-    # 2. Get integer indices for the four corners
     y0 = torch.floor(y_src).long()
     x0 = torch.floor(x_src).long()
     y1 = torch.clamp(y0 + 1, 0, H - 1)
     x1 = torch.clamp(x0 + 1, 0, W - 1)
 
-    # 3. Calculate interpolation weights
-    # Reshape weights for broadcasting: (1, 1, H_out, 1) and (1, 1, 1, W_out)
     y_weight = (y_src - y0).view(1, 1, -1, 1)
     x_weight = (x_src - x0).view(1, 1, 1, -1)
 
-    # 4. Gather pixels using advanced indexing
-    # We slice dimensions. x[..., y0, :] selects rows, result is (B, C, H_out, W)
-    # Then we slice columns from that result.
-
-    # Ia: Top-Left (y0, x0)
+    # Gather
     Ia = x[..., y0, :][..., x0]
-    # Ib: Top-Right (y0, x1)
     Ib = x[..., y0, :][..., x1]
-    # Ic: Bottom-Left (y1, x0)
     Ic = x[..., y1, :][..., x0]
-    # Id: Bottom-Right (y1, x1)
     Id = x[..., y1, :][..., x1]
 
-    # 5. Interpolate
-    # Horizontal interpolation
+    # Interpolate
     top = Ia + (Ib - Ia) * x_weight
     bottom = Ic + (Id - Ic) * x_weight
-
-    # Vertical interpolation
     result = top + (bottom - top) * y_weight
 
     return result
@@ -131,45 +116,74 @@ class SafeSpectralConv2d(nn.Module):
 
     def forward(self, x):
         batchsize = x.shape[0]
-
+        H = x.size(-2)
         target_width = x.size(-1) // 2 + 1
 
-        x_res = compile_friendly_interpolate_bilinear(
-            x, size=(x.size(-2), target_width)
-        )
+        # Use Patch 2: Manual Interpolation
+        x_res = compile_friendly_interpolate_bilinear(x, size=(H, target_width))
 
         x_ft = torch.stack([x_res, x_res], dim=-1)
 
-        out_ft = torch.zeros(
+        # 1. Compute the active frequency blocks
+        # Top-left block
+        out_ft_upper = self.compl_mul2d_as_real(
+            x_ft[:, :, : self.modes1, : self.modes2, :], self.weights1
+        )
+        # Bottom-left block
+        out_ft_lower = self.compl_mul2d_as_real(
+            x_ft[:, :, -self.modes1 :, : self.modes2, :], self.weights2
+        )
+
+        # 2. Construct output tensor using concatenation instead of in-place mutation
+        # We build the tensor from parts:
+        # Left Strip: [Upper, Zeros_Middle, Lower]
+        # Right Strip: [Zeros_Right]
+
+        mid_height = H - 2 * self.modes1
+
+        # Create middle zero block for left strip
+        zeros_mid = torch.zeros(
             batchsize,
             self.out_channels,
-            x.size(-2),
-            target_width,
+            mid_height,
+            self.modes2,
             2,
             dtype=torch.float32,
             device=x.device,
         )
 
-        out_ft[:, :, : self.modes1, : self.modes2, :] = self.compl_mul2d_as_real(
-            x_ft[:, :, : self.modes1, : self.modes2, :], self.weights1
-        )
+        # Assemble Left Strip (along height dim=2)
+        col_left = torch.cat([out_ft_upper, zeros_mid, out_ft_lower], dim=2)
 
-        out_ft[:, :, -self.modes1 :, : self.modes2, :] = self.compl_mul2d_as_real(
-            x_ft[:, :, -self.modes1 :, : self.modes2, :], self.weights2
-        )
+        # Create Right Strip
+        width_right = target_width - self.modes2
+        if width_right > 0:
+            col_right = torch.zeros(
+                batchsize,
+                self.out_channels,
+                H,
+                width_right,
+                2,
+                dtype=torch.float32,
+                device=x.device,
+            )
+            # Assemble Full Tensor (along width dim=3)
+            out_ft = torch.cat([col_left, col_right], dim=3)
+        else:
+            out_ft = col_left
 
+        # 3. Inverse transform logic
         out_real = out_ft[..., 0] - out_ft[..., 1]
 
-        x = compile_friendly_interpolate_bilinear(
-            out_real, size=(x.size(-2), x.size(-1))
-        )
+        # Use Patch 2: Manual Interpolation
+        x = compile_friendly_interpolate_bilinear(out_real, size=(H, x.size(-1)))
 
         return x
 
 
 original_module.SpectralConv2d_jit_torchCompile = SafeSpectralConv2d
 print(
-    "Patched SpectralConv2d to use Safe Implementation (No-Complex + Manual Interpolation)."
+    "Patched SpectralConv2d to use Safe Implementation (No-Complex + Manual Interpolation + No-Inplace)."
 )
 
 
