@@ -34,31 +34,36 @@ torch.nn.InstanceNorm2d = CompileFriendlyInstanceNorm2d
 
 def compile_friendly_interpolate_bilinear(x, size):
     """
-    Performs bilinear interpolation (align_corners=False) using basic PyTorch
-    ops (indexing, arithmetic) that decompose cleanly to MLIR Linalg.
+    Performs bilinear interpolation using basic PyTorch ops.
+    Expects 'size' to be a tuple of integers.
     """
     B, C, H, W = x.shape
     target_h, target_w = size
 
-    # Calculate coordinates
+    # Generate coordinates
+    # We use 0.0 (floats) for clamp bounds to avoid 'torch.constant.int' issues with float tensors
     y_coords = torch.arange(target_h, device=x.device, dtype=torch.float32)
     x_coords = torch.arange(target_w, device=x.device, dtype=torch.float32)
 
     y_src = (y_coords + 0.5) * (H / target_h) - 0.5
     x_src = (x_coords + 0.5) * (W / target_w) - 0.5
 
-    y_src = torch.clamp(y_src, 0, H - 1)
-    x_src = torch.clamp(x_src, 0, W - 1)
+    # Clamp with explicit floats
+    y_src = torch.clamp(y_src, 0.0, float(H - 1))
+    x_src = torch.clamp(x_src, 0.0, float(W - 1))
 
+    # Integer indices
     y0 = torch.floor(y_src).long()
     x0 = torch.floor(x_src).long()
-    y1 = torch.clamp(y0 + 1, 0, H - 1)
-    x1 = torch.clamp(x0 + 1, 0, W - 1)
+    # Clamp integer indices (using int 0 is fine for Long tensors usually, but keeping it simple)
+    y1 = torch.clamp(y0 + 1, 0, int(H - 1))
+    x1 = torch.clamp(x0 + 1, 0, int(W - 1))
 
+    # Calculate weights
     y_weight = (y_src - y0).view(1, 1, -1, 1)
     x_weight = (x_src - x0).view(1, 1, 1, -1)
 
-    # Gather
+    # Gather pixels
     Ia = x[..., y0, :][..., x0]
     Ib = x[..., y0, :][..., x1]
     Ic = x[..., y1, :][..., x0]
@@ -116,32 +121,27 @@ class SafeSpectralConv2d(nn.Module):
 
     def forward(self, x):
         batchsize = x.shape[0]
-        H = x.size(-2)
-        target_width = x.size(-1) // 2 + 1
+        # Force static integers for dimensions to avoid TracerWarning and ambiguous tensor scalars
+        H = int(x.size(-2))
+        W = int(x.size(-1))
+        target_width = W // 2 + 1
 
-        # Use Patch 2: Manual Interpolation
+        # Use Manual Interpolation
         x_res = compile_friendly_interpolate_bilinear(x, size=(H, target_width))
 
         x_ft = torch.stack([x_res, x_res], dim=-1)
 
-        # 1. Compute the active frequency blocks
-        # Top-left block
+        # Compute frequency blocks
         out_ft_upper = self.compl_mul2d_as_real(
             x_ft[:, :, : self.modes1, : self.modes2, :], self.weights1
         )
-        # Bottom-left block
         out_ft_lower = self.compl_mul2d_as_real(
             x_ft[:, :, -self.modes1 :, : self.modes2, :], self.weights2
         )
 
-        # 2. Construct output tensor using concatenation instead of in-place mutation
-        # We build the tensor from parts:
-        # Left Strip: [Upper, Zeros_Middle, Lower]
-        # Right Strip: [Zeros_Right]
-
+        # Construct output tensor via concatenation (No in-place mutation)
         mid_height = H - 2 * self.modes1
 
-        # Create middle zero block for left strip
         zeros_mid = torch.zeros(
             batchsize,
             self.out_channels,
@@ -152,10 +152,8 @@ class SafeSpectralConv2d(nn.Module):
             device=x.device,
         )
 
-        # Assemble Left Strip (along height dim=2)
         col_left = torch.cat([out_ft_upper, zeros_mid, out_ft_lower], dim=2)
 
-        # Create Right Strip
         width_right = target_width - self.modes2
         if width_right > 0:
             col_right = torch.zeros(
@@ -167,25 +165,20 @@ class SafeSpectralConv2d(nn.Module):
                 dtype=torch.float32,
                 device=x.device,
             )
-            # Assemble Full Tensor (along width dim=3)
             out_ft = torch.cat([col_left, col_right], dim=3)
         else:
             out_ft = col_left
 
-        # 3. Inverse transform logic
         out_real = out_ft[..., 0] - out_ft[..., 1]
 
-        # Use Patch 2: Manual Interpolation
-        x = compile_friendly_interpolate_bilinear(out_real, size=(H, x.size(-1)))
+        # Inverse Interpolation
+        x = compile_friendly_interpolate_bilinear(out_real, size=(H, W))
 
         return x
 
 
 original_module.SpectralConv2d_jit_torchCompile = SafeSpectralConv2d
-print(
-    "Patched SpectralConv2d to use Safe Implementation (No-Complex + Manual Interpolation + No-Inplace)."
-)
-
+print("Patched SpectralConv2d: Safe Impl + Manual Interp + No-Inplace + Static Shapes.")
 
 from stfno.stfno_2d import FNO2d_global
 
