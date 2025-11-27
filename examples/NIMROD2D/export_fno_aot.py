@@ -1,10 +1,11 @@
 # export_fno_aot.py
-import torch
-import torch_mlir
 import sys
 import os
 
-sys.path.append(os.getcwd())
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
+import torch
+import torch_mlir
+
 
 from stfno.stfno_2d import FNO2d_global
 
