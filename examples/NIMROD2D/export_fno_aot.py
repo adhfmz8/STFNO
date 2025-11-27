@@ -57,7 +57,10 @@ print(f"Input Shape: {dummy_input.shape}")
 # --- 4. COMPILE TO MLIR ---
 print("Compiling to MLIR (Linalg on Tensors)...")
 module = torch_mlir.compile(
-    model, inputs=[dummy_input], output_type=torch_mlir.OutputType.LINALG_ON_TENSORS
+    model,
+    example_args=[dummy_input],
+    output_type=torch_mlir.OutputType.LINALG_ON_TENSORS,
+    use_tracing=True,
 )
 
 # --- 5. SAVE ---
